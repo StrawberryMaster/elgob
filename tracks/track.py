@@ -58,6 +58,7 @@ def generate_track_map(storms, args):
             x, y = get_pos(pos, img.size, args)
             r, g, b = get_color(pos, args.scale)
             draw.ellipse((x - args.dots, y - args.dots, x + args.dots, y + args.dots), fill=(r, g, b, int(args.alpha * 255)))
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
     img.save(args.output)
     print(f"Track map generated and saved to {args.output}")
 
