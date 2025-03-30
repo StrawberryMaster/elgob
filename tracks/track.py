@@ -69,19 +69,27 @@ def parse_args():
     return parser.parse_args()
 
 def read_storm_data(args):
+    if not os.path.isfile(args.input):
+        print(f"Error: Input file '{args.input}' not found.")
+        return []
+    
     storms = []
-    if args.format == "hurdat":
-        storms = read_stormdata_hurdat(args.input)
-    elif args.format == "atcf":
-        storms = read_stormdata_atcf(args.input, args.skipasynoptic)
-    elif args.format == "jma":
-        storms = read_stormdata_jma(args.input, args.skipasynoptic)
-    elif args.format == "hurdat2":
-        storms = read_stormdata_hurdat2(args.input, args.skipasynoptic)
-    elif args.format == "md":
-        storms = read_stormdata_md(args.input)
-    elif args.format == "tcr":
-        storms = read_stormdata_tcr(args.input)
+    try:
+        if args.format == "hurdat":
+            storms = read_stormdata_hurdat(args.input)
+        elif args.format == "atcf":
+            storms = read_stormdata_atcf(args.input, args.skipasynoptic)
+        elif args.format == "jma":
+            storms = read_stormdata_jma(args.input, args.skipasynoptic)
+        elif args.format == "hurdat2":
+            storms = read_stormdata_hurdat2(args.input, args.skipasynoptic)
+        elif args.format == "md":
+            storms = read_stormdata_md(args.input)
+        elif args.format == "tcr":
+            storms = read_stormdata_tcr(args.input)
+    except Exception as e:
+        print(f"Error reading file '{args.input}': {str(e)}")
+        return []
     
     if not storms:
         print(f"No storms found in {args.input}. Check the file format and content.")
