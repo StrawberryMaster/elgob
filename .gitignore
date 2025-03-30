@@ -3,6 +3,8 @@ track
 data/*/btk/*.dat
 data/*.dat
 .vscode
+tracks/__pycache__/
+tracks/*.pyc
 tracks/*.o
 tracks/.deps
 tracks/autom4te.cache
