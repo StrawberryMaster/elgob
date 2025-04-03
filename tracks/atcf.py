@@ -39,13 +39,11 @@ def read_stormdata_atcf(file_path, skipasynoptic):
     return storms
 
 def get_storm_type(token):
-    if token in ['TD', 'TS', 'TY', 'ST', 'TC', 'HU']:
+    if token in ['TD', 'TS', 'TY', 'ST', 'TC', 'HU', 'XX']:
         return 'TROPICAL'
     elif token in ['SD', 'SS']:
         return 'SUBTROPICAL'
-    elif token == 'EX':
+    elif token in ['EX', 'MD', 'IN', 'DS', 'LO', 'WV', 'ET', 'DB']:
         return 'EXTRATROPICAL'
-    elif token in ['LO', 'WV', 'MD', 'DB']:
-        return 'LOW'
     else:
         return 'TROPICAL'
