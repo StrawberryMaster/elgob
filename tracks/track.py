@@ -194,7 +194,7 @@ def generate_track_map(storms, args):
     ax.set_ylim(args.ymin, args.ymax)
     ax.set_axis_off()
     
-    line_width = max(1, min(5, int(args.lines * min(width, height) / 30)))
+    line_width = (0.09 / 360) * width + (0.09 / 180) * height
     
     def calculate_dot_size(dots_param, width, height, xrange, yrange):
         base_size = (dots_param * min(width / xrange, height / yrange)) ** 2
