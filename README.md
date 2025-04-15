@@ -10,6 +10,7 @@ ELGOB (an anagram of globe!) is a tropical cyclone track generator based on [tit
 - Options to filter storms by year, name, ID, or wind intensity
 - Ability to set custom or automatic geographical boundaries
 - Support for visualizing different storm phases (tropical, extratropical, subtropical)
+- Ability to fetch files from external archives (e.g., IBTrACS, NOAA, JMA)
 
 ## Requirements
 - Python 3.6+
@@ -46,6 +47,14 @@ python track.py --input EXAMPLE --format hurdat2
 - [`tracks`](tracks): Main Python scripts
 - [`data`](data): Background images and data
 - [`png`](png): Default output directory for images
+
+## Fetching data from external archives
+You can use `get.sh` to fetch data from the HURDAT2 Atlantic hurricane database. This script will download the data and save it in the `tracks` directory.
+```bash
+cd tracks
+./get.sh
+```
+It will download the database and ask you for the storm ID (e.g., `AL012020` for Hurricane Isaias). The script will then fetch the data and save it in the `tracks` directory under `storm_tracks.txt`.
 
 ## Credits
 ELGOB is based on the wptc-track project. Many thanks to titoxd and the contributors for their work on this project.

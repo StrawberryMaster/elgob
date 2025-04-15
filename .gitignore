@@ -2,6 +2,7 @@ output.png
 track
 data/*/btk/*.dat
 data/*.dat
+HURDAT.txt
 hurdat2-bt.txt
 storm_tracks.txt
 .vscode
