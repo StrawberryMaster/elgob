@@ -2,6 +2,8 @@ output.png
 track
 data/*/btk/*.dat
 data/*.dat
+hurdat2-bt.txt
+storm_tracks.txt
 .vscode
 tracks/__pycache__/
 tracks/*.pyc

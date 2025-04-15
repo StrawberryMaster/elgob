@@ -25,7 +25,7 @@ pip install -r requirements.txt
 ## Basic usage
 ```bash
 cd tracks
-python track.py --input EXAMPLE --format hurdat
+python track.py --input EXAMPLE --format hurdat2
 ```
 
 ### Common parameters
