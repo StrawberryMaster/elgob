@@ -15,6 +15,7 @@ ELGOB (an anagram of globe!) is a tropical cyclone track generator based on [tit
 ## Requirements
 - Python 3.6+
 - Dependencies: matplotlib, numpy
+- Optional: cartopy (for the `cone.py` script)
 
 ## Installation
 ```bash
@@ -57,7 +58,7 @@ cd tracks
 It will download the database and ask you for the storm ID (e.g., `AL012020` for Hurricane Isaias). The script will then fetch the data and save it in the `tracks` directory under `storm_tracks.txt`.
 
 ## Credits
-ELGOB is based on the wptc-track project. Many thanks to titoxd and the contributors for their work on this project.
+ELGOB is based on the wptc-track project. Many thanks to titoxd and the contributors for their work on this project. `cone.py` is based on `ConeForecaster.py`, written by Sohum09. The code has been modified to work with ELGOB and to support additional features.
 
 ## License
 See the [LICENSE](LICENSE) file for details.
