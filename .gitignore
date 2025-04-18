@@ -2,9 +2,6 @@ output.png
 track
 data/*/btk/*.dat
 data/*.dat
-HURDAT.txt
-hurdat2-bt.txt
-storm_tracks.txt
 .vscode
 tracks/__pycache__/
 tracks/*.pyc
@@ -15,4 +12,5 @@ tracks/config.log
 tracks/config.status
 tracks/config.h
 tracks/stamp-h1
+tracks/*.txt
 Makefile
