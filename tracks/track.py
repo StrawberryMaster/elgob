@@ -68,6 +68,22 @@ def parse_args():
     parser.add_argument("--show_legend", action="store_true", help="Display a color legend for storm categories")
     return parser.parse_args()
 
+def circular_mean(angles_deg):
+    """Calculates the circular mean of a list of angles in degrees."""
+    if not angles_deg:
+        return 0.0
+    angles_rad = np.deg2rad(angles_deg)
+    mean_sin = np.mean(np.sin(angles_rad))
+    mean_cos = np.mean(np.cos(angles_rad))
+    mean_angle_rad = np.arctan2(mean_sin, mean_cos)
+    mean_angle_deg = np.rad2deg(mean_angle_rad)
+    return (mean_angle_deg + 360) % 360
+
+def circular_distance(angle1_deg, angle2_deg):
+    """Calculates the circular distance between two angles in degrees."""
+    diff = abs(angle1_deg - angle2_deg)
+    return min(diff, 360 - diff)
+
 def read_storm_data(args):
     if not os.path.isfile(args.input):
         print(f"Error: Input file '{args.input}' not found.")
@@ -112,29 +128,99 @@ def read_storm_data(args):
     if not filtered_storms:
         print("No system found with the specified parameters. Check the filters.")
         return []
-    
-    if not all([args.xmin, args.xmax, args.ymin, args.ymax]) and filtered_storms:
-        lon_positions = [pos["lon"] for storm in filtered_storms for pos in storm["positions"]]
-        lat_positions = [pos["lat"] for storm in filtered_storms for pos in storm["positions"]]
+
+    lat_positions = [pos["lat"] for storm in filtered_storms for pos in storm["positions"]]
+    if lat_positions:
+        min_lat = min(lat_positions)
+        max_lat = max(lat_positions)
+        padding_lat = 10.0
+        args.ymin = min_lat - padding_lat if args.ymin is None else args.ymin
+        args.ymax = max_lat + padding_lat if args.ymax is None else args.ymax
+    else:
+        args.ymin = -90 if args.ymin is None else args.ymin
+        args.ymax = 90 if args.ymax is None else args.ymax
+
+    lon_positions = [pos["lon"] for storm in filtered_storms for pos in storm["positions"]]
+    padding_lon = 10.0
+    if lon_positions:
+        lons_360 = [(lon + 360) % 360 for lon in lon_positions]
         
-        if lon_positions and lat_positions:
-            min_lon = min(lon_positions)
-            max_lon = max(lon_positions)
-            min_lat = min(lat_positions)
-            max_lat = max(lat_positions)
-            
-            padding = 10.0
-            args.xmin = min_lon - padding if args.xmin is None else args.xmin
-            args.xmax = max_lon + padding if args.xmax is None else args.xmax
-            args.ymin = min_lat - padding if args.ymin is None else args.ymin
-            args.ymax = max_lat + padding if args.ymax is None else args.ymax
-        else:
-            args.xmin = -180 if args.xmin is None else args.xmin
-            args.xmax = 180 if args.xmax is None else args.xmax
-            args.ymin = -90 if args.ymin is None else args.ymin
-            args.ymax = 90 if args.ymax is None else args.ymax
+        center_lon_360 = circular_mean(lons_360)
+        distances = [circular_distance(lon, center_lon_360) for lon in lons_360]
+        max_dist = max(distances) if distances else 0
+        
+        view_span = min(360.0, (2 * max_dist) + (2 * padding_lon))
+        
+        view_lon_min = center_lon_360 - view_span / 2
+        view_lon_max = center_lon_360 + view_span / 2
+
+        args.view_lon_min = view_lon_min if args.xmin is None else args.xmin
+        args.view_lon_max = view_lon_max if args.xmax is None else args.xmax
+
+        if args.xmin is None: args.xmin = wrap_longitude(view_lon_min)
+        if args.xmax is None: args.xmax = wrap_longitude(view_lon_max)
+
+    else:
+        args.view_lon_min = -180.0 if args.xmin is None else args.xmin
+        args.view_lon_max = 180.0 if args.xmax is None else args.xmax
+        if args.xmin is None: args.xmin = -180.0
+        if args.xmax is None: args.xmax = 180.0
+
+    initial_view_lon_min = args.view_lon_min
+    initial_view_lon_max = args.view_lon_max
+    initial_ymin = args.ymin
+    initial_ymax = args.ymax
+
+    center_lon_initial = (initial_view_lon_min + initial_view_lon_max) / 2
+    center_lat_initial = (initial_ymin + initial_ymax) / 2
+
+    lon_span_initial = initial_view_lon_max - initial_view_lon_min
+    lat_span_initial = initial_ymax - initial_ymin
+    if lat_span_initial <= 0: lat_span_initial = 1
     
+    target_ratio = 16 / 9
+    current_ratio = lon_span_initial / lat_span_initial
+
+    if abs(current_ratio - target_ratio) > 1e-6:
+        if current_ratio < target_ratio:
+            target_lon_span = target_ratio * lat_span_initial
+            args.view_lon_min = center_lon_initial - target_lon_span / 2
+            args.view_lon_max = center_lon_initial + target_lon_span / 2
+
+            args.ymin = initial_ymin
+            args.ymax = initial_ymax
+        else: # current_ratio > target_ratio
+            target_lat_span = lon_span_initial / target_ratio
+            args.ymin = center_lat_initial - target_lat_span / 2
+            args.ymax = center_lat_initial + target_lat_span / 2
+
+            args.view_lon_min = initial_view_lon_min
+            args.view_lon_max = initial_view_lon_max
+    else:
+         args.view_lon_min = initial_view_lon_min
+         args.view_lon_max = initial_view_lon_max
+         args.ymin = initial_ymin
+         args.ymax = initial_ymax
+
+    args.xmin = wrap_longitude(args.view_lon_min)
+    args.xmax = wrap_longitude(args.view_lon_max)
+
     return filtered_storms
+
+def wrap_longitude(lon):
+    """Wraps longitude to the range [-180, 180]."""
+    lon = lon % 360
+    if lon > 180:
+        lon -= 360
+    return lon
+
+def adjust_longitude_for_view(lon, center_lon):
+    """Adjusts longitude to fit within the view range centered around center_lon."""
+    while lon < center_lon - 180:
+        lon += 360
+    while lon > center_lon + 180:
+        lon -= 360
+    return lon
 
 def generate_track_map(storms, args):
     print(f"Loading background image: {args.bg}")
@@ -149,67 +235,75 @@ def generate_track_map(storms, args):
     
     try:
         bg_img = mpimg.imread(args.bg)
+        full_height, full_width = bg_img.shape[:2]
     except FileNotFoundError:
         print(f"Background image not found: {args.bg}")
         print("Using solid black background instead")
-        bg_img = np.zeros((height, width, 3))
-    
-    extent = None
-    if args.xmin is not None and args.xmax is not None and args.ymin is not None and args.ymax is not None:
-        if args.xmin >= args.xmax or args.ymin >= args.ymax:
-            print("Warning: Invalid geographic limits. Resetting to defaults.")
-            args.xmin, args.xmax = -180, 180
-            args.ymin, args.ymax = -90, 90
+        bg_img = None
+        full_height, full_width = 1800, 3600o
+
+    view_lon_min = args.view_lon_min
+    view_lon_max = args.view_lon_max
+    view_lat_min = args.ymin
+    view_lat_max = args.ymax
+    center_lon_view = (view_lon_min + view_lon_max) / 2
+
+    if bg_img is not None:
+        print("Tiling background...")
+        base_lon_min = -180
+        base_lon_max = 180
+        base_lon_span = base_lon_max - base_lon_min # 360
+
+        start_tile_index = math.floor((view_lon_min - base_lon_max) / base_lon_span)
+        end_tile_index = math.ceil((view_lon_max - base_lon_min) / base_lon_span)
+
+        for i in range(start_tile_index, end_tile_index + 1):
+            tile_lon_min = base_lon_min + i * base_lon_span
+            tile_lon_max = base_lon_max + i * base_lon_span
             
-        lon_span = args.xmax - args.xmin
-        lat_span = args.ymax - args.ymin
-        target_ratio = 16 / 9
-        current_ratio = lon_span / lat_span
-        
-        if current_ratio < target_ratio:
-            extra_lon = (target_ratio * lat_span - lon_span) / 2
-            args.xmin -= extra_lon
-            args.xmax += extra_lon
-        elif current_ratio > target_ratio:
-            extra_lat = (lon_span / target_ratio - lat_span) / 2
-            args.ymin -= extra_lat
-            args.ymax += extra_lat
-        
-        full_height, full_width = bg_img.shape[:2]
-        xscale = full_width / 360.0
-        yscale = full_height / 180.0
-        
-        left = (args.xmin + 180) * xscale
-        right = (args.xmax + 180) * xscale
-        top = (90 - args.ymax) * yscale
-        bottom = (90 - args.ymin) * yscale
-        
-        if 0 <= left < full_width and 0 <= right < full_width and 0 <= top < full_height and 0 <= bottom < full_height:
-            bg_img = bg_img[int(top):int(bottom), int(left):int(right)]
-        
-        extent = [args.xmin, args.xmax, args.ymin, args.ymax]
-    
-    ax.imshow(bg_img, extent=extent, interpolation='lanczos')
-    ax.set_xlim(args.xmin, args.xmax)
-    ax.set_ylim(args.ymin, args.ymax)
-    ax.set_axis_off()
-    
+            img_x_min = 0
+            img_x_max = full_width
+            img_y_min = (90 - view_lat_max) * (full_height / 180.0)
+            img_y_max = (90 - view_lat_min) * (full_height / 180.0)
+
+            img_y_min = max(0, int(img_y_min))
+            img_y_max = min(full_height, int(img_y_max))
+            
+            if img_y_min >= img_y_max: continue
+
+            cropped_bg = bg_img[img_y_min:img_y_max, img_x_min:img_x_max]
+            
+            ax.imshow(cropped_bg, 
+                      extent=[tile_lon_min, tile_lon_max, view_lat_min, view_lat_max], 
+                      interpolation='lanczos', aspect='auto')
+    else:
+        ax.set_facecolor('black')
+
     line_width = (0.09 / 360) * width + (0.09 / 180) * height
     
     def calculate_dot_size(dots_param, width, height, xrange, yrange):
-        base_size = (dots_param * min(width / xrange, height / yrange)) ** 2
-        return max(10, min(200, base_size * 2))
-    
+        pixels_per_degree = min(width / max(1, xrange), height / max(1, yrange))
+        base_size = (dots_param * pixels_per_degree) ** 2
+        return max(5, min(100, base_size * 1.5))
+
     dot_size = calculate_dot_size(args.dots, width, height, 
-                                 args.xmax - args.xmin, 
-                                 args.ymax - args.ymin)
+                                 view_lon_max - view_lon_min, 
+                                 view_lat_max - view_lat_min)
     
     for storm in storms:
-        if hasattr(args, 'show_names') and args.show_names and len(storm["positions"]) > 0:
-            label_pos = storm["positions"][0]
-            
-            offset_y = (args.ymax - args.ymin) * 0.05
-            
+        adjusted_positions = []
+        for pos in storm["positions"]:
+             if args.noextra and pos.get("type") == "EXTRATROPICAL":
+                 continue
+             adj_pos = pos.copy()
+             adj_pos["lon"] = adjust_longitude_for_view(pos["lon"], center_lon_view)
+             adjusted_positions.append(adj_pos)
+
+        if not adjusted_positions: continue
+
+        if hasattr(args, 'show_names') and args.show_names:
+            label_pos = adjusted_positions[0]
+            offset_y = (view_lat_max - view_lat_min) * 0.05
             label_text = ax.text(label_pos["lon"], label_pos["lat"] - offset_y, 
                                storm["name"], 
                                color='white', fontsize=8, fontweight='bold',
@@ -219,44 +313,21 @@ def generate_track_map(storms, args):
                 path_effects.Normal()
             ])
         
-        if len(storm["positions"]) > 1:
-            for i in range(len(storm["positions"]) - 1):
-                pos1 = storm["positions"][i]
-                pos2 = storm["positions"][i+1]
-                
-                if not args.noextra and (pos1.get("type") == "EXTRATROPICAL" or pos2.get("type") == "EXTRATROPICAL"):
-                    continue
-                
-                ax.plot([pos1["lon"], pos2["lon"]], [pos1["lat"], pos2["lat"]], 
-                       color=(1, 1, 1, args.alpha), linewidth=line_width, zorder=10)
-        
-        if len(storm["positions"]) > 1:
-            for i in range(len(storm["positions"]) - 1):
-                pos1 = storm["positions"][i]
-                pos2 = storm["positions"][i+1]
-                
-                if args.noextra and (pos1.get("type") == "EXTRATROPICAL" or pos2.get("type") == "EXTRATROPICAL"):
-                    continue
-                
-                ax.plot([pos1["lon"], pos2["lon"]], [pos1["lat"], pos2["lat"]], 
-                       color=(1, 1, 1, args.alpha), linewidth=line_width, zorder=10)
-        
+        if len(adjusted_positions) > 1:
+            lons = [pos["lon"] for pos in adjusted_positions]
+            lats = [pos["lat"] for pos in adjusted_positions]
+            ax.plot(lons, lats, color=(1, 1, 1, args.alpha), linewidth=line_width, zorder=10)
+
         lons = []
         lats = []
         colors = []
         sizes = []
         markers = []
-        
-        for pos in storm["positions"]:
-            if args.noextra and pos.get("type") == "EXTRATROPICAL":
-                continue
-                
+        for pos in adjusted_positions:
             lons.append(pos["lon"])
             lats.append(pos["lat"])
-            
             r, g, b = get_color_from_wind(pos["wind"], args.scale)
             colors.append((r, g, b, args.alpha))
-            
             if pos.get("type") == "SUBTROPICAL":
                 markers.append('s')
                 sizes.append(dot_size * 0.60)
@@ -266,24 +337,22 @@ def generate_track_map(storms, args):
             else:
                 markers.append('o')
                 sizes.append(dot_size)
-        
-        if lons and lats:
-            marker_groups = {}
-            for i, marker in enumerate(markers):
-                if marker not in marker_groups:
-                    marker_groups[marker] = {'lons': [], 'lats': [], 'colors': [], 'sizes': []}
-                marker_groups[marker]['lons'].append(lons[i])
-                marker_groups[marker]['lats'].append(lats[i])
-                marker_groups[marker]['colors'].append(colors[i])
-                marker_groups[marker]['sizes'].append(sizes[i])
-            
-            for marker, data in marker_groups.items():
-                ax.scatter(data['lons'], data['lats'], c=data['colors'], 
-                          s=data['sizes'], marker=marker, zorder=20, 
-                          edgecolor='none', linewidths=0)
                 
-                ax.set_aspect('equal', adjustable='datalim')
-    
+        for marker in set(markers):
+            idxs = [i for i, m in enumerate(markers) if m == marker]
+            marker_lons = [lons[i] for i in idxs]
+            marker_lats = [lats[i] for i in idxs]
+            marker_colors = [colors[i] for i in idxs]
+            marker_sizes = [sizes[i] for i in idxs]
+            ax.scatter(marker_lons, marker_lats, c=marker_colors, s=marker_sizes, 
+                       marker=marker, zorder=20, edgecolor='none', linewidths=0)
+
+    ax.set_xlim(view_lon_min, view_lon_max)
+    ax.set_ylim(view_lat_min, view_lat_max)
+
+    ax.set_aspect('equal', adjustable='box') 
+    ax.set_axis_off() 
+
     if hasattr(args, 'show_legend') and args.show_legend:
         legend_entries = []
         legend_labels = []
