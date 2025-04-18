@@ -114,6 +114,15 @@ def main():
             else:
                 plt.scatter(longitudes[i], latitudes[i], color='#ff5908', marker='o')
             ax.add_patch(circle)
+        elif wind >= 85: #C2
+            circle = plt.Circle((longitudes[i], latitudes[i]), cone_radius[i], color='#ffaa00', alpha=0.2, transform=ccrs.PlateCarree())
+            count = 2
+            if count not in dupl:
+                plt.scatter(longitudes[i], latitudes[i], color='#ffaa00', marker='o', label='Category 2')
+                dupl.append(count)
+            else:
+                plt.scatter(longitudes[i], latitudes[i], color='#ffaa00', marker='o')
+            ax.add_patch(circle)
         elif wind >= 65: #C1
             circle = plt.Circle((longitudes[i], latitudes[i]), cone_radius[i], color='#ffff00', alpha=0.2, transform=ccrs.PlateCarree())
             count = 1
