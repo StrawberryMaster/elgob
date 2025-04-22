@@ -222,19 +222,44 @@ def adjust_longitude_for_view(lon, center_lon):
         lon -= 360
     return lon
 
+def calculate_dimensions(width, height, args):
+    """Calculate image dimensions maintaining target ratio and resolution."""
+    X_RATIO = 1.618033988749894
+    Y_RATIO = 1.0
+    
+    lon_span = width
+    lat_span = height
+    
+    if lat_span > lon_span / X_RATIO:
+        lon_span = lat_span * X_RATIO
+    elif lat_span < lon_span / Y_RATIO:
+        lat_span = lon_span / Y_RATIO
+        
+    if lat_span > lon_span:
+        yres = args.res
+        xres = int(yres * lon_span / lat_span + 0.5)
+    else:
+        xres = args.res
+        yres = int(xres * lat_span / lon_span + 0.5)
+        
+    return xres, yres
+
 def generate_track_map(storms, args):
     print(f"Loading background image: {args.bg}")
+
+    EXTRA_SPACE = 5.0
+    MIN_DIM = 45.0
 
     lon_span = args.view_lon_max - args.view_lon_min
     lat_span = args.ymax - args.ymin
 
-    width = args.res
-    if lat_span > lon_span:
-        height = width
-        width = int(height * lon_span / lat_span + 0.5)
-    else:
-        height = int(width * lat_span / lon_span + 0.5)
-    print(f"Image size: {width} x {height}")
+    if lon_span < MIN_DIM:
+        diff = MIN_DIM - lon_span
+        lon_span = MIN_DIM
+        args.view_lon_min -= diff / 2
+        args.view_lon_max += diff / 2
+
+    width, height = calculate_dimensions(lon_span, lat_span, args)
 
     dpi = 100
     fig = plt.figure(figsize=(width/dpi, height/dpi), dpi=dpi, facecolor='black')
