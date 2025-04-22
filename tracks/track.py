@@ -224,15 +224,22 @@ def adjust_longitude_for_view(lon, center_lon):
 
 def generate_track_map(storms, args):
     print(f"Loading background image: {args.bg}")
-    
+
+    lon_span = args.view_lon_max - args.view_lon_min
+    lat_span = args.ymax - args.ymin
+
     width = args.res
-    height = int(width * 9 / 16)
-    print(f"Image size: {width} x {height} (16:9 format)")
-    
+    if lat_span > lon_span:
+        height = width
+        width = int(height * lon_span / lat_span + 0.5)
+    else:
+        height = int(width * lat_span / lon_span + 0.5)
+    print(f"Image size: {width} x {height}")
+
     dpi = 100
     fig = plt.figure(figsize=(width/dpi, height/dpi), dpi=dpi, facecolor='black')
     ax = fig.add_subplot(111)
-    
+
     try:
         bg_img = mpimg.imread(args.bg)
         full_height, full_width = bg_img.shape[:2]
@@ -240,7 +247,7 @@ def generate_track_map(storms, args):
         print(f"Background image not found: {args.bg}")
         print("Using solid black background instead")
         bg_img = None
-        full_height, full_width = 1800, 3600o
+        full_height, full_width = 1800, 3600
 
     view_lon_min = args.view_lon_min
     view_lon_max = args.view_lon_max
@@ -279,40 +286,41 @@ def generate_track_map(storms, args):
     else:
         ax.set_facecolor('black')
 
-    line_width = (0.09 / 360) * width + (0.09 / 180) * height
-    
-    def calculate_dot_size(dots_param, width, height, xrange, yrange):
-        pixels_per_degree = min(width / max(1, xrange), height / max(1, yrange))
-        base_size = (dots_param * pixels_per_degree) ** 2
-        return max(5, min(100, base_size * 1.5))
+    def calculate_line_width(lines_param, width, lon_span):
+        return max(1, lines_param / max(1e-6, lon_span) * width)
 
-    dot_size = calculate_dot_size(args.dots, width, height, 
-                                 view_lon_max - view_lon_min, 
-                                 view_lat_max - view_lat_min)
-    
+    line_width = calculate_line_width(args.lines, width, lon_span)
+
+    def calculate_dot_area(dots_param, width, lon_span, scale=1.8):
+        diameter = scale * dots_param / max(1e-6, lon_span) * width
+        area = (diameter / 2) ** 2 * math.pi
+        return max(10, area)
+
+    dot_area = calculate_dot_area(args.dots, width, lon_span)
+
     for storm in storms:
         adjusted_positions = []
         for pos in storm["positions"]:
-             if args.noextra and pos.get("type") == "EXTRATROPICAL":
-                 continue
-             adj_pos = pos.copy()
-             adj_pos["lon"] = adjust_longitude_for_view(pos["lon"], center_lon_view)
-             adjusted_positions.append(adj_pos)
+            if args.noextra and pos.get("type") == "EXTRATROPICAL":
+                continue
+            adj_pos = pos.copy()
+            adj_pos["lon"] = adjust_longitude_for_view(pos["lon"], center_lon_view)
+            adjusted_positions.append(adj_pos)
 
         if not adjusted_positions: continue
 
         if hasattr(args, 'show_names') and args.show_names:
             label_pos = adjusted_positions[0]
             offset_y = (view_lat_max - view_lat_min) * 0.05
-            label_text = ax.text(label_pos["lon"], label_pos["lat"] - offset_y, 
-                               storm["name"], 
+            label_text = ax.text(label_pos["lon"], label_pos["lat"] - offset_y,
+                               storm["name"],
                                color='white', fontsize=8, fontweight='bold',
                                ha='center', va='top', zorder=30)
             label_text.set_path_effects([
                 path_effects.Stroke(linewidth=2, foreground='black'),
                 path_effects.Normal()
             ])
-        
+
         if len(adjusted_positions) > 1:
             lons = [pos["lon"] for pos in adjusted_positions]
             lats = [pos["lat"] for pos in adjusted_positions]
@@ -330,28 +338,28 @@ def generate_track_map(storms, args):
             colors.append((r, g, b, args.alpha))
             if pos.get("type") == "SUBTROPICAL":
                 markers.append('s')
-                sizes.append(dot_size * 0.60)
+                sizes.append(dot_area * 0.60)
             elif pos.get("type") == "EXTRATROPICAL":
                 markers.append('^')
-                sizes.append(dot_size * 0.70)
+                sizes.append(dot_area * 0.70)
             else:
                 markers.append('o')
-                sizes.append(dot_size)
-                
+                sizes.append(dot_area)
+
         for marker in set(markers):
             idxs = [i for i, m in enumerate(markers) if m == marker]
             marker_lons = [lons[i] for i in idxs]
             marker_lats = [lats[i] for i in idxs]
             marker_colors = [colors[i] for i in idxs]
             marker_sizes = [sizes[i] for i in idxs]
-            ax.scatter(marker_lons, marker_lats, c=marker_colors, s=marker_sizes, 
+            ax.scatter(marker_lons, marker_lats, c=marker_colors, s=marker_sizes,
                        marker=marker, zorder=20, edgecolor='none', linewidths=0)
 
     ax.set_xlim(view_lon_min, view_lon_max)
     ax.set_ylim(view_lat_min, view_lat_max)
 
-    ax.set_aspect('equal', adjustable='box') 
-    ax.set_axis_off() 
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_axis_off()
 
     if hasattr(args, 'show_legend') and args.show_legend:
         legend_entries = []
